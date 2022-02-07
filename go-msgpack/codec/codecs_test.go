@@ -24,7 +24,7 @@ import (
 	"io/ioutil"
 	"math"
 	"net"
-	"net/rpc"
+	"github.com/hashicorp/consul-net-rpc/net/rpc"
 	"os"
 	"os/exec"
 	"path/filepath"

@@ -6,7 +6,7 @@ package codec
 import (
 	"bufio"
 	"io"
-	"net/rpc"
+	"github.com/hashicorp/consul-net-rpc/net/rpc"
 	"sync"
 )
 

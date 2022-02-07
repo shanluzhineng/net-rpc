@@ -2,7 +2,7 @@ package msgpackrpc
 
 import (
 	"errors"
-	"net/rpc"
+	"github.com/hashicorp/consul-net-rpc/net/rpc"
 	"sync/atomic"
 
 	"github.com/hashicorp/go-multierror"
