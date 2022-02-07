@@ -11,8 +11,9 @@ package codec
 
 import (
 	"errors"
-	"reflect"
 	"flag"
+	"os"
+	"reflect"
 	"testing"
 )
 
@@ -24,9 +25,13 @@ var (
 func init() {
 	testInitFlags()
 	benchInitFlags()
+}
+
+func TestMain(m *testing.M) {
 	flag.Parse()
 	testInit()
 	benchInit()
+	os.Exit(m.Run())
 }
 
 func checkErrT(t *testing.T, err error) {
