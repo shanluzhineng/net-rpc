@@ -3,10 +3,10 @@ package msgpackrpc
 import (
 	"bufio"
 	"io"
-	"net/rpc"
 	"sync"
 
 	"github.com/hashicorp/consul-net-rpc/go-msgpack/codec"
+	"github.com/hashicorp/consul-net-rpc/net/rpc"
 )
 
 var (

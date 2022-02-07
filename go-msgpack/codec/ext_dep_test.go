@@ -1,4 +1,5 @@
-//+build ignore
+//go:build ignore
+// +build ignore
 
 // NOTE (Jeff Mitchell): I'm disabling this for now as this package never
 // changes, but leaving this file active causes go mod to pull in some very
