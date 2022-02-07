@@ -24,7 +24,6 @@ import (
 	"io/ioutil"
 	"math"
 	"net"
-	"github.com/hashicorp/consul-net-rpc/net/rpc"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,6 +33,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/hashicorp/consul-net-rpc/net/rpc"
 )
 
 type testVerifyArg int

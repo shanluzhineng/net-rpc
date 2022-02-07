@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+
 	"github.com/hashicorp/consul-net-rpc/net/rpc"
 )
 

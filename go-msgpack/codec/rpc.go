@@ -6,8 +6,9 @@ package codec
 import (
 	"bufio"
 	"io"
-	"github.com/hashicorp/consul-net-rpc/net/rpc"
 	"sync"
+
+	"github.com/hashicorp/consul-net-rpc/net/rpc"
 )
 
 // Rpc provides a rpc Server or Client Codec for rpc communication.

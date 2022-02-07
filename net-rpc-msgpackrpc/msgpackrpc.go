@@ -6,6 +6,7 @@ package msgpackrpc
 import (
 	"io"
 	"net"
+
 	"github.com/hashicorp/consul-net-rpc/net/rpc"
 )
 
