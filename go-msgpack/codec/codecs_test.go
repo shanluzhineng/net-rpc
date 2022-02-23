@@ -21,6 +21,7 @@ import (
 	"encoding/gob"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math"
 	"net"
@@ -781,8 +782,13 @@ func doTestRpcOne(t *testing.T, rr Rpc, h Handle, doRequest bool, exitSleepMs ti
 				return // exit serverFn goroutine
 			}
 			if err1 == nil {
-				var sc rpc.ServerCodec = rr.ServerCodec(conn1, h)
-				srv.ServeCodec(sc)
+				var sc = rr.ServerCodec(conn1, h)
+				for {
+					if err := srv.ServeRequest(sc); err == io.EOF {
+						sc.Close()
+						break
+					}
+				}
 			}
 		}
 	}
