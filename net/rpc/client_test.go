@@ -69,7 +69,7 @@ func TestGobError(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	go srv.Accept(listen)
+	go accept(srv, listen)
 
 	client, err := Dial("tcp", listen.Addr().String())
 	if err != nil {

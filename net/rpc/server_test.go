@@ -126,7 +126,7 @@ func startServer() {
 	var l net.Listener
 	l, serverAddr = listenTCP()
 	log.Println("Test RPC server listening on", serverAddr)
-	go DefaultServer.Accept(l)
+	go accept(DefaultServer, l)
 
 	DefaultServer.HandleHTTP(DefaultRPCPath, DefaultDebugPath)
 	httpOnce.Do(startHttpServer)
@@ -142,10 +142,25 @@ func startNewServer() {
 	var l net.Listener
 	l, newServerAddr = listenTCP()
 	log.Println("NewServer test RPC server listening on", newServerAddr)
-	go newServer.Accept(l)
+	go accept(newServer, l)
 
 	newServer.HandleHTTP(newHttpPath, "/bar")
 	httpOnce.Do(startHttpServer)
+}
+
+// Accept accepts connections on the listener and serves requests
+// for each incoming connection. Accept blocks until the listener
+// returns a non-nil error. The caller typically invokes Accept in a
+// go statement.
+func accept(server *Server, lis net.Listener) {
+	for {
+		conn, err := lis.Accept()
+		if err != nil {
+			log.Print("rpc.Serve: accept:", err.Error())
+			return
+		}
+		go server.ServeConn(conn)
+	}
 }
 
 func startHttpServer() {
@@ -688,7 +703,7 @@ func TestAcceptExitAfterListenerClose(t *testing.T) {
 	var l net.Listener
 	l, _ = listenTCP()
 	l.Close()
-	newServer.Accept(l)
+	accept(newServer, l)
 }
 
 func TestShutdown(t *testing.T) {

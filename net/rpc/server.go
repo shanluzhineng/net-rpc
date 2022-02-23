@@ -133,7 +133,6 @@ import (
 	"go/token"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"reflect"
 	"strings"
@@ -614,21 +613,6 @@ func (server *Server) readRequestHeader(codec ServerCodec) (svc *service, mtype 
 		err = errors.New("rpc: can't find method " + req.ServiceMethod)
 	}
 	return
-}
-
-// Accept accepts connections on the listener and serves requests
-// for each incoming connection. Accept blocks until the listener
-// returns a non-nil error. The caller typically invokes Accept in a
-// go statement.
-func (server *Server) Accept(lis net.Listener) {
-	for {
-		conn, err := lis.Accept()
-		if err != nil {
-			log.Print("rpc.Serve: accept:", err.Error())
-			return
-		}
-		go server.ServeConn(conn)
-	}
 }
 
 // A ServerCodec implements reading of RPC requests and writing of
