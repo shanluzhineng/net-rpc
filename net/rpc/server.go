@@ -451,31 +451,12 @@ func (server *Server) ServeConn(conn io.ReadWriteCloser) {
 // ServeCodec is like ServeConn but uses the specified codec to
 // decode requests and encode responses.
 func (server *Server) ServeCodec(codec ServerCodec) {
-	sending := new(sync.Mutex)
-	wg := new(sync.WaitGroup)
+	defer codec.Close()
 	for {
-		service, mtype, req, argv, replyv, keepReading, err := server.readRequest(codec)
-		if err != nil {
-			if debugLog && err != io.EOF {
-				log.Println("rpc:", err)
-			}
-			if !keepReading {
-				break
-			}
-			// send a response if we actually managed to read a header.
-			if req != nil {
-				server.sendResponse(sending, req, invalidRequest, codec, err.Error())
-				server.freeRequest(req)
-			}
-			continue
+		if err := server.ServeRequest(codec); err == io.EOF {
+			return
 		}
-		wg.Add(1)
-		go service.call(server, sending, wg, mtype, req, argv, replyv, codec)
 	}
-	// We've seen that there are no more requests.
-	// Wait for responses to be sent before closing codec.
-	wg.Wait()
-	codec.Close()
 }
 
 // ServeRequest is like ServeCodec but synchronously serves a single request.
