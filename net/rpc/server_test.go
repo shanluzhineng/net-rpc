@@ -118,17 +118,17 @@ func listenTCP() (net.Listener, string) {
 }
 
 func startServer() {
-	Register(new(Arith))
-	Register(new(Embed))
-	RegisterName("net.rpc.Arith", new(Arith))
-	Register(BuiltinTypes{})
+	DefaultServer.Register(new(Arith))
+	DefaultServer.Register(new(Embed))
+	DefaultServer.RegisterName("net.rpc.Arith", new(Arith))
+	DefaultServer.Register(BuiltinTypes{})
 
 	var l net.Listener
 	l, serverAddr = listenTCP()
 	log.Println("Test RPC server listening on", serverAddr)
-	go Accept(l)
+	go DefaultServer.Accept(l)
 
-	HandleHTTP()
+	DefaultServer.HandleHTTP(DefaultRPCPath, DefaultDebugPath)
 	httpOnce.Do(startHttpServer)
 }
 
@@ -409,12 +409,7 @@ func (codec *CodecEmulator) Call(serviceMethod string, args *Args, reply *Reply)
 	codec.args = args
 	codec.reply = reply
 	codec.err = nil
-	var serverError error
-	if codec.server == nil {
-		serverError = ServeRequest(codec)
-	} else {
-		serverError = codec.server.ServeRequest(codec)
-	}
+	serverError := codec.server.ServeRequest(codec)
 	if codec.err == nil && serverError != nil {
 		codec.err = serverError
 	}
@@ -449,8 +444,6 @@ func (codec *CodecEmulator) Close() error {
 }
 
 func TestServeRequest(t *testing.T) {
-	once.Do(startServer)
-	testServeRequest(t, nil)
 	newOnce.Do(startNewServer)
 	testServeRequest(t, newServer)
 }
@@ -499,19 +492,19 @@ func (t *NeedsPtrType) NeedsPtrType(args *Args, reply *Reply) error {
 
 // Check that registration handles lots of bad methods and a type with no suitable methods.
 func TestRegistrationError(t *testing.T) {
-	err := Register(new(ReplyNotPointer))
+	err := DefaultServer.Register(new(ReplyNotPointer))
 	if err == nil {
 		t.Error("expected error registering ReplyNotPointer")
 	}
-	err = Register(new(ArgNotPublic))
+	err = DefaultServer.Register(new(ArgNotPublic))
 	if err == nil {
 		t.Error("expected error registering ArgNotPublic")
 	}
-	err = Register(new(ReplyNotPublic))
+	err = DefaultServer.Register(new(ReplyNotPublic))
 	if err == nil {
 		t.Error("expected error registering ReplyNotPublic")
 	}
-	err = Register(NeedsPtrType(0))
+	err = DefaultServer.Register(NeedsPtrType(0))
 	if err == nil {
 		t.Error("expected error registering NeedsPtrType")
 	} else if !strings.Contains(err.Error(), "pointer") {

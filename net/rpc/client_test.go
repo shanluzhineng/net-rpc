@@ -52,6 +52,8 @@ func (s *S) Recv(nul *struct{}, reply *R) error {
 }
 
 func TestGobError(t *testing.T) {
+	srv := NewServer()
+
 	defer func() {
 		err := recover()
 		if err == nil {
@@ -61,13 +63,13 @@ func TestGobError(t *testing.T) {
 			t.Fatal("expected `reading body EOF', got", err)
 		}
 	}()
-	Register(new(S))
+	srv.Register(new(S))
 
 	listen, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		panic(err)
 	}
-	go Accept(listen)
+	go srv.Accept(listen)
 
 	client, err := Dial("tcp", listen.Addr().String())
 	if err != nil {

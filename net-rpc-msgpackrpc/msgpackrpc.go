@@ -34,10 +34,3 @@ func NewClientCodec(conn io.ReadWriteCloser) rpc.ClientCodec {
 func NewServerCodec(conn io.ReadWriteCloser) rpc.ServerCodec {
 	return NewCodec(true, true, conn)
 }
-
-// ServeConn runs the MessagePack-RPC server on a single connection. ServeConn
-// blocks, serving the connection until the client hangs up. The caller
-// typically invokes ServeConn in a go statement.
-func ServeConn(conn io.ReadWriteCloser) {
-	rpc.ServeCodec(NewServerCodec(conn))
-}

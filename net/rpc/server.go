@@ -631,15 +631,6 @@ func (server *Server) Accept(lis net.Listener) {
 	}
 }
 
-// Register publishes the receiver's methods in the DefaultServer.
-func Register(rcvr interface{}) error { return DefaultServer.Register(rcvr) }
-
-// RegisterName is like Register but uses the provided name for the type
-// instead of the receiver's concrete type.
-func RegisterName(name string, rcvr interface{}) error {
-	return DefaultServer.RegisterName(name, rcvr)
-}
-
 // A ServerCodec implements reading of RPC requests and writing of
 // RPC responses for the server side of an RPC session.
 // The server calls ReadRequestHeader and ReadRequestBody in pairs
@@ -656,33 +647,6 @@ type ServerCodec interface {
 	// Close can be called multiple times and must be idempotent.
 	Close() error
 }
-
-// ServeConn runs the DefaultServer on a single connection.
-// ServeConn blocks, serving the connection until the client hangs up.
-// The caller typically invokes ServeConn in a go statement.
-// ServeConn uses the gob wire format (see package gob) on the
-// connection. To use an alternate codec, use ServeCodec.
-// See NewClient's comment for information about concurrent access.
-func ServeConn(conn io.ReadWriteCloser) {
-	DefaultServer.ServeConn(conn)
-}
-
-// ServeCodec is like ServeConn but uses the specified codec to
-// decode requests and encode responses.
-func ServeCodec(codec ServerCodec) {
-	DefaultServer.ServeCodec(codec)
-}
-
-// ServeRequest is like ServeCodec but synchronously serves a single request.
-// It does not close the codec upon completion.
-func ServeRequest(codec ServerCodec) error {
-	return DefaultServer.ServeRequest(codec)
-}
-
-// Accept accepts connections on the listener and serves requests
-// to DefaultServer for each incoming connection.
-// Accept blocks; the caller typically invokes it in a go statement.
-func Accept(lis net.Listener) { DefaultServer.Accept(lis) }
 
 // Can connect to RPC service using HTTP CONNECT to rpcPath.
 var connected = "200 Connected to Go RPC"
@@ -710,11 +674,4 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 func (server *Server) HandleHTTP(rpcPath, debugPath string) {
 	http.Handle(rpcPath, server)
 	http.Handle(debugPath, debugHTTP{server})
-}
-
-// HandleHTTP registers an HTTP handler for RPC messages to DefaultServer
-// on DefaultRPCPath and a debugging handler on DefaultDebugPath.
-// It is still necessary to invoke http.Serve(), typically in a go statement.
-func HandleHTTP() {
-	DefaultServer.HandleHTTP(DefaultRPCPath, DefaultDebugPath)
 }
