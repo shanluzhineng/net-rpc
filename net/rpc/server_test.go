@@ -148,6 +148,20 @@ func startNewServer() {
 	httpOnce.Do(startHttpServer)
 }
 
+func startNewServerWithInterceptor(interceptor ServerServiceCallInterceptor) {
+	newServer = NewServerWithOpts(WithServerServiceCallInterceptor(interceptor))
+
+	newServer.Register(new(Arith))
+	newServer.Register(new(Embed))
+	newServer.RegisterName("net.rpc.Arith", new(Arith))
+	newServer.RegisterName("newServer.Arith", new(Arith))
+
+	var l net.Listener
+	l, newServerAddr = listenTCP()
+	log.Println("NewServer test RPC server listening on", newServerAddr)
+	go newServer.Accept(l)
+}
+
 func startHttpServer() {
 	server := httptest.NewServer(nil)
 	httpServerAddr = server.Listener.Addr().String()
@@ -453,6 +467,56 @@ func TestServeRequest(t *testing.T) {
 	testServeRequest(t, nil)
 	newOnce.Do(startNewServer)
 	testServeRequest(t, newServer)
+}
+
+func TestServeRequestWithInterceptor(t *testing.T) {
+	beforeHandler := 1
+	afterHandler := 3
+
+	interceptor := ServerServiceCallInterceptor(func(reqServiceMethod string, argv, replyv reflect.Value, handler func()) {
+		// we will assert on this value later
+		beforeHandler = 2
+
+		// these values come from startNewServerWithInterceptor() wiring
+		if reqServiceMethod != "Arith.Add" {
+			t.Errorf("expected serviceMethod in interceptor to be \"Arith.Add\". Was: %s", reqServiceMethod)
+		}
+
+		// argv, replyv reflect.Value,
+		actualArgs := argv.Interface().(Args)
+		if actualArgs.A != 7 || actualArgs.B != 8 {
+			t.Errorf("expected args in interceptor to be {7, 8}. Was: %+v", actualArgs)
+		}
+
+		beforeHandlerReply := replyv.Elem().Interface().(Reply)
+		if beforeHandlerReply.C != 0 {
+			t.Errorf("expected result in interceptor before handler call to be 0. Was %d", beforeHandlerReply.C)
+		}
+
+		// let the RPC req happen
+		handler()
+
+		actualReply := replyv.Elem().Interface().(Reply)
+		if actualReply.C != 15 {
+			t.Errorf("expected result in interceptor to be 15. Was %d", actualReply.C)
+		}
+
+		// we will assert on this value later
+		afterHandler = 4
+
+	})
+
+	startNewServerWithInterceptor(interceptor)
+
+	testServeRequest(t, newServer)
+
+	if beforeHandler != 2 {
+		t.Errorf("expected beforeHandler value to be 2. Was %d", beforeHandler)
+	}
+
+	if afterHandler != 4 {
+		t.Errorf("expected beforeHandler value to be 4. Was %d", afterHandler)
+	}
 }
 
 func testServeRequest(t *testing.T, server *Server) {
