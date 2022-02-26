@@ -5,11 +5,14 @@
 package rpc
 
 import (
+	"bufio"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"runtime"
@@ -118,17 +121,17 @@ func listenTCP() (net.Listener, string) {
 }
 
 func startServer() {
-	Register(new(Arith))
-	Register(new(Embed))
-	RegisterName("net.rpc.Arith", new(Arith))
-	Register(BuiltinTypes{})
+	DefaultServer.Register(new(Arith))
+	DefaultServer.Register(new(Embed))
+	DefaultServer.RegisterName("net.rpc.Arith", new(Arith))
+	DefaultServer.Register(BuiltinTypes{})
 
 	var l net.Listener
 	l, serverAddr = listenTCP()
 	log.Println("Test RPC server listening on", serverAddr)
-	go Accept(l)
+	go accept(DefaultServer, l)
 
-	HandleHTTP()
+	handleHTTP(DefaultServer, DefaultRPCPath, DefaultDebugPath)
 	httpOnce.Do(startHttpServer)
 }
 
@@ -142,9 +145,9 @@ func startNewServer() {
 	var l net.Listener
 	l, newServerAddr = listenTCP()
 	log.Println("NewServer test RPC server listening on", newServerAddr)
-	go newServer.Accept(l)
+	go accept(newServer, l)
 
-	newServer.HandleHTTP(newHttpPath, "/bar")
+	handleHTTP(newServer, newHttpPath, "/bar")
 	httpOnce.Do(startHttpServer)
 }
 
@@ -423,12 +426,7 @@ func (codec *CodecEmulator) Call(serviceMethod string, args *Args, reply *Reply)
 	codec.args = args
 	codec.reply = reply
 	codec.err = nil
-	var serverError error
-	if codec.server == nil {
-		serverError = ServeRequest(codec)
-	} else {
-		serverError = codec.server.ServeRequest(codec)
-	}
+	serverError := codec.server.ServeRequest(codec)
 	if codec.err == nil && serverError != nil {
 		codec.err = serverError
 	}
@@ -463,8 +461,6 @@ func (codec *CodecEmulator) Close() error {
 }
 
 func TestServeRequest(t *testing.T) {
-	once.Do(startServer)
-	testServeRequest(t, nil)
 	newOnce.Do(startNewServer)
 	testServeRequest(t, newServer)
 }
@@ -563,19 +559,19 @@ func (t *NeedsPtrType) NeedsPtrType(args *Args, reply *Reply) error {
 
 // Check that registration handles lots of bad methods and a type with no suitable methods.
 func TestRegistrationError(t *testing.T) {
-	err := Register(new(ReplyNotPointer))
+	err := DefaultServer.Register(new(ReplyNotPointer))
 	if err == nil {
 		t.Error("expected error registering ReplyNotPointer")
 	}
-	err = Register(new(ArgNotPublic))
+	err = DefaultServer.Register(new(ArgNotPublic))
 	if err == nil {
 		t.Error("expected error registering ArgNotPublic")
 	}
-	err = Register(new(ReplyNotPublic))
+	err = DefaultServer.Register(new(ReplyNotPublic))
 	if err == nil {
 		t.Error("expected error registering ReplyNotPublic")
 	}
-	err = Register(NeedsPtrType(0))
+	err = DefaultServer.Register(NeedsPtrType(0))
 	if err == nil {
 		t.Error("expected error registering NeedsPtrType")
 	} else if !strings.Contains(err.Error(), "pointer") {
@@ -759,7 +755,7 @@ func TestAcceptExitAfterListenerClose(t *testing.T) {
 	var l net.Listener
 	l, _ = listenTCP()
 	l.Close()
-	newServer.Accept(l)
+	accept(newServer, l)
 }
 
 func TestShutdown(t *testing.T) {
@@ -785,7 +781,7 @@ func TestShutdown(t *testing.T) {
 
 	newServer := NewServer()
 	newServer.Register(new(Arith))
-	go newServer.ServeConn(c1)
+	go serveConn(newServer, c1)
 
 	args := &Args{7, 8}
 	reply := new(Reply)
@@ -900,4 +896,62 @@ func BenchmarkEndToEndAsync(b *testing.B) {
 
 func BenchmarkEndToEndAsyncHTTP(b *testing.B) {
 	benchmarkEndToEndAsync(dialHTTP, b)
+}
+
+// accept accepts connections on the listener and serves requests
+// for each incoming connection. Accept blocks until the listener
+// returns a non-nil error. The caller typically invokes Accept in a
+// go statement.
+func accept(server *Server, lis net.Listener) {
+	for {
+		conn, err := lis.Accept()
+		if err != nil {
+			log.Print("rpc.Serve: accept:", err.Error())
+			return
+		}
+		go serveConn(server, conn)
+	}
+}
+
+// handleHTTP registers an HTTP handler for RPC messages on rpcPath,
+// and a debugging handler on debugPath.
+// It is still necessary to invoke http.Serve(), typically in a go statement.
+func handleHTTP(server *Server, rpcPath, debugPath string) {
+	http.Handle(rpcPath, http.HandlerFunc(serveHTTP(server)))
+	http.Handle(debugPath, debugHTTP{server})
+}
+
+// serveHTTP implements an http.HandlerFunc that answers RPC requests.
+func serveHTTP(server *Server) func(w http.ResponseWriter, req *http.Request) {
+	return func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != "CONNECT" {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			io.WriteString(w, "405 must CONNECT\n")
+			return
+		}
+		conn, _, err := w.(http.Hijacker).Hijack()
+		if err != nil {
+			log.Print("rpc hijacking ", req.RemoteAddr, ": ", err.Error())
+			return
+		}
+		io.WriteString(conn, "HTTP/1.0 "+connected+"\n\n")
+		serveConn(server, conn)
+	}
+}
+
+func serveConn(server *Server, conn io.ReadWriteCloser) {
+	buf := bufio.NewWriter(conn)
+	codec := &gobServerCodec{
+		rwc:    conn,
+		dec:    gob.NewDecoder(conn),
+		enc:    gob.NewEncoder(buf),
+		encBuf: buf,
+	}
+	defer codec.Close()
+	for {
+		if err := server.ServeRequest(codec); err == io.EOF {
+			return
+		}
+	}
 }
