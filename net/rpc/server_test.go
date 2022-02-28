@@ -162,7 +162,7 @@ func startNewServerWithInterceptor(interceptor ServerServiceCallInterceptor) {
 	var l net.Listener
 	l, newServerAddr = listenTCP()
 	log.Println("NewServer test RPC server listening on", newServerAddr)
-	go newServer.Accept(l)
+	go accept(newServer, l)
 }
 
 func startHttpServer() {
