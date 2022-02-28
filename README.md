@@ -1,13 +1,14 @@
 # Consul net/rpc
 
-This repository contains a fork of the [net/rpc] package from the Go standard library. The codec
-used with `net/rpc` contains references to the `net/rpc` package, so this fork also contains
-a fork of [hashicorp/net-rpc-msgpackrpc] and [hashicorp/go-msgpack] so those references
-to `net/rpc` point at the correct package.
-
 **Important**: This fork was created exclusively for Consul. We will not accept
 any changes to this repository for any other use cases. We discourage any use of this
 library outside of Consul.
+
+
+This repository contains a fork of the [net/rpc] package from the Go standard library.
+The codec that Consul uses contains references to the `net/rpc` package, so this fork also contains
+a fork of [hashicorp/net-rpc-msgpackrpc] and [hashicorp/go-msgpack] so those references
+to `net/rpc` point at the correct package.
 
 [net/rpc]: https://pkg.go.dev/net/rpc
 [hashicorp/net-rpc-msgpackrpc]: https://github.com/hashicorp/net-rpc-msgpackrpc
@@ -15,8 +16,8 @@ library outside of Consul.
 
 ## Why does this fork exist?
 
-[net/rpc] has been [frozen since late 2016], which means no changes are accepted to the
-package, and none of the existing bugs will be fixed. 
+[net/rpc] has been [frozen since late 2016], which means no new changes will be made
+to the package, and none of the existing bugs will be fixed.
 
 Consul uses `net/rpc` for almost all of its many RPC endpoints. Consul has started to use
 gRPC for some new RPC endpoints, but the work required to port all of the existing RPC
@@ -35,14 +36,14 @@ all existing RPC endpoints to gRPC.
 ## How is this fork different from the stdlib and go-msgpack?
 
 
-We will limit the changes to this fork in the follow ways:
+We will limit the changes to this fork in the following ways:
 
-* any additions to `net/rpc` should be minimal hooks that allow functionality to be added
-  from Consul, for example an interceptor added to `Server`
-* any deletes should be of functions that are not used by Consul
-* we will try to preserve the existing code structure as much as possible, for the unlikely
-  case that we need to apply a patch from the stdlib
-* test cases may be added, but we will preserve existing test cases
+* Any additions to `net/rpc` should be minimal hooks that allow functionality to be added
+  from Consul. For example, an interceptor added to `Server`;
+* Any deletes should be of functions that are not used by Consul;
+* We will try to preserve the existing code structure as much as possible, for the unlikely
+  case that we need to apply a patch from the stdlib;
+* All changes should be additive, including existing test cases;
 * `hashicorp/net-rpc-msgpackrpc` and `hashicorp/go-msgpack` should only receive updates
   from the upstream remote, with one exception. In some cases we may delete code that is
-  not used by Consul, to allow the deletion of functions from `net/rpc`.
+  not used by Consul, to allow the deletion of functions from this fork of `net/rpc`.
