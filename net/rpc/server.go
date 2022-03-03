@@ -215,7 +215,7 @@ func WithServerServiceCallInterceptor(interceptor ServerServiceCallInterceptor) 
 
 // ServerServiceCallInterceptor acts a middleware hook on the server side of the RPC call. The interceptor must
 // invoke the handler argument for the RPC request to continue.
-type ServerServiceCallInterceptor func(reqServiceMethod string, argv, replyv reflect.Value, handler func())
+type ServerServiceCallInterceptor func(reqServiceMethod string, argv, replyv reflect.Value, handler func() error)
 
 // DefaultServer is the default instance of *Server.
 var DefaultServer = NewServer()
@@ -359,12 +359,12 @@ func suitableMethods(typ reflect.Type, reportErr bool) map[string]*methodType {
 // contains an error when it is used.
 var invalidRequest = struct{}{}
 
-func (server *Server) sendResponse(sending *sync.Mutex, req *Request, reply interface{}, codec ServerCodec, errmsg string) {
+func (server *Server) sendResponse(sending *sync.Mutex, req *Request, reply interface{}, codec ServerCodec, callErr error) {
 	resp := server.getResponse()
 	// Encode the response header
 	resp.ServiceMethod = req.ServiceMethod
-	if errmsg != "" {
-		resp.Error = errmsg
+	if callErr != nil {
+		resp.Error = callErr.Error()
 		reply = invalidRequest
 	}
 	resp.Seq = req.Seq
@@ -384,7 +384,7 @@ func (m *methodType) NumCalls() (n uint) {
 	return n
 }
 
-func (s *service) call(server *Server, sending *sync.Mutex, wg *sync.WaitGroup, mtype *methodType, req *Request, argv, replyv reflect.Value, codec ServerCodec) {
+func (s *service) call(server *Server, sending *sync.Mutex, wg *sync.WaitGroup, mtype *methodType, req *Request, argv, replyv reflect.Value, codec ServerCodec) error {
 	if wg != nil {
 		defer wg.Done()
 	}
@@ -396,12 +396,13 @@ func (s *service) call(server *Server, sending *sync.Mutex, wg *sync.WaitGroup, 
 	returnValues := function.Call([]reflect.Value{s.rcvr, argv, replyv})
 	// The return value for the method is an error.
 	errInter := returnValues[0].Interface()
-	errmsg := ""
+	var callErr error
 	if errInter != nil {
-		errmsg = errInter.(error).Error()
+		callErr = errInter.(error)
 	}
-	server.sendResponse(sending, req, replyv.Interface(), codec, errmsg)
+	server.sendResponse(sending, req, replyv.Interface(), codec, callErr)
 	server.freeRequest(req)
+	return callErr
 }
 
 type gobServerCodec struct {
@@ -462,20 +463,21 @@ func (server *Server) ServeRequest(codec ServerCodec) error {
 		}
 		// send a response if we actually managed to read a header.
 		if req != nil {
-			server.sendResponse(sending, req, invalidRequest, codec, err.Error())
+			server.sendResponse(sending, req, invalidRequest, codec, err)
 			server.freeRequest(req)
 		}
 		return err
 	}
 
-	handler := func() {
-		service.call(server, sending, nil, mtype, req, argv, replyv, codec)
+	handler := func() error {
+		return service.call(server, sending, nil, mtype, req, argv, replyv, codec)
 	}
 
 	if server.serverServiceCallInterceptor != nil {
 		server.serverServiceCallInterceptor(req.ServiceMethod, argv, replyv, handler)
 	} else {
-		handler()
+		// service.call errors are sent to the client, not returned to the caller
+		_ = handler()
 	}
 
 	return nil

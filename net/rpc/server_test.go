@@ -469,7 +469,7 @@ func TestServeRequestWithInterceptor(t *testing.T) {
 	beforeHandler := 1
 	afterHandler := 3
 
-	interceptor := ServerServiceCallInterceptor(func(reqServiceMethod string, argv, replyv reflect.Value, handler func()) {
+	interceptor := ServerServiceCallInterceptor(func(reqServiceMethod string, argv, replyv reflect.Value, handler func() error) {
 		// we will assert on this value later
 		beforeHandler = 2
 
@@ -490,7 +490,10 @@ func TestServeRequestWithInterceptor(t *testing.T) {
 		}
 
 		// let the RPC req happen
-		handler()
+		err := handler()
+		if err != nil {
+			t.Errorf("expected handler err to be nil. Was %s", err)
+		}
 
 		actualReply := replyv.Elem().Interface().(Reply)
 		if actualReply.C != 15 {
@@ -499,7 +502,6 @@ func TestServeRequestWithInterceptor(t *testing.T) {
 
 		// we will assert on this value later
 		afterHandler = 4
-
 	})
 
 	startNewServerWithInterceptor(interceptor)
@@ -532,6 +534,29 @@ func testServeRequest(t *testing.T, server *Server) {
 	err = client.Call("Arith.Add", nil, reply)
 	if err == nil {
 		t.Errorf("expected error calling Arith.Add with nil arg")
+	}
+}
+
+func TestServeRequestWithInterceptor_ServiceCallError(t *testing.T) {
+	var handlerError error
+
+	interceptor := ServerServiceCallInterceptor(func(reqServiceMethod string, argv, replyv reflect.Value, handler func() error) {
+		handlerError = handler()
+	})
+
+	startNewServerWithInterceptor(interceptor)
+
+	client := CodecEmulator{server: newServer}
+	defer client.Close()
+
+	args := &Args{A: 7, B: 0}
+	reply := new(Reply)
+	// ignore this error, because this is not how a real client reports these errors
+	_ = client.Call("Arith.Div", args, reply)
+
+	expected := "divide by zero"
+	if handlerError == nil || handlerError.Error() != expected {
+		t.Fatalf("expected error %v, got %v", expected, handlerError)
 	}
 }
 
