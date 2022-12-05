@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 
 	"github.com/hashicorp/consul-net-rpc/net/rpc"
 )
@@ -753,6 +754,10 @@ func (c *msgpackSpecRpcCodec) ReadRequestBody(body interface{}) error {
 	return c.read(&bodyArr)
 }
 
+func (c *msgpackSpecRpcCodec) SourceAddr() net.Addr {
+	return c.conn.RemoteAddr()
+}
+
 func (c *msgpackSpecRpcCodec) parseCustomHeader(expectTypeByte byte, msgid *uint64, methodOrError *string) (err error) {
 
 	if c.cls {
@@ -805,11 +810,11 @@ type msgpackSpecRpc struct{}
 // Its methods (ServerCodec and ClientCodec) return values that implement RpcCodecBuffered.
 var MsgpackSpecRpc msgpackSpecRpc
 
-func (x msgpackSpecRpc) ServerCodec(conn io.ReadWriteCloser, h Handle) rpc.ServerCodec {
+func (x msgpackSpecRpc) ServerCodec(conn Conn, h Handle) rpc.ServerCodec {
 	return &msgpackSpecRpcCodec{newRPCCodec(conn, h)}
 }
 
-func (x msgpackSpecRpc) ClientCodec(conn io.ReadWriteCloser, h Handle) rpc.ClientCodec {
+func (x msgpackSpecRpc) ClientCodec(conn Conn, h Handle) rpc.ClientCodec {
 	return &msgpackSpecRpcCodec{newRPCCodec(conn, h)}
 }
 

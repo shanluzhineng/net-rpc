@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"reflect"
 	"runtime"
 	"strings"
@@ -149,6 +150,20 @@ func startNewServer() {
 
 	handleHTTP(newServer, newHttpPath, "/bar")
 	httpOnce.Do(startHttpServer)
+}
+
+func startNewServerWithPreBodyInterceptor(preBodyinterceptor PreBodyInterceptor) {
+	newServer = NewServerWithOpts(WithPreBodyInterceptor(preBodyinterceptor))
+
+	newServer.Register(new(Arith))
+	newServer.Register(new(Embed))
+	newServer.RegisterName("net.rpc.Arith", new(Arith))
+	newServer.RegisterName("newServer.Arith", new(Arith))
+
+	var l net.Listener
+	l, newServerAddr = listenTCP()
+	log.Println("NewServer test RPC server listening on", newServerAddr)
+	go accept(newServer, l)
 }
 
 func startNewServerWithInterceptor(interceptor ServerServiceCallInterceptor) {
@@ -456,6 +471,10 @@ func (codec *CodecEmulator) WriteResponse(resp *Response, reply interface{}) err
 	return nil
 }
 
+func (codec *CodecEmulator) SourceAddr() net.Addr {
+	return net.TCPAddrFromAddrPort(netip.MustParseAddrPort("1.2.3.4:8080"))
+}
+
 func (codec *CodecEmulator) Close() error {
 	return nil
 }
@@ -514,6 +533,59 @@ func TestServeRequestWithInterceptor(t *testing.T) {
 
 	if afterHandler != 4 {
 		t.Errorf("expected beforeHandler value to be 4. Was %d", afterHandler)
+	}
+}
+
+func TestPreBodyInterceptor_Success(t *testing.T) {
+	preBodyInterceptorCalled := false
+	expectedSourceAddr := net.TCPAddrFromAddrPort(netip.MustParseAddrPort("1.2.3.4:8080"))
+
+	preBodyInterceptor := PreBodyInterceptor(func(reqServiceMethod string, sourceAddr net.Addr) error {
+		if reqServiceMethod != "Arith.Add" {
+			t.Errorf("expected reqServiceMethod to be Arith.Add but was %s", reqServiceMethod)
+		}
+
+		if sourceAddr.String() != expectedSourceAddr.String() {
+			t.Errorf("expected sourceAddr to be %s but was %s", expectedSourceAddr, sourceAddr)
+		}
+
+		preBodyInterceptorCalled = true
+		return nil
+	})
+
+	startNewServerWithPreBodyInterceptor(preBodyInterceptor)
+	testServeRequest(t, newServer)
+
+	if !preBodyInterceptorCalled {
+		t.Errorf("expected preBodyInterceptorCalled to be true")
+	}
+}
+
+func TestPreBodyInterceptor_Failure(t *testing.T) {
+	preBodyInterceptorCalled := false
+
+	preBodyInterceptor := PreBodyInterceptor(func(reqServiceMethod string, sourceAddr net.Addr) error {
+		preBodyInterceptorCalled = true
+		return errors.New("request denied")
+	})
+
+	startNewServerWithPreBodyInterceptor(preBodyInterceptor)
+
+	client := CodecEmulator{server: newServer}
+	defer client.Close()
+
+	args := &Args{A: 4, B: 2}
+	reply := new(Reply)
+	// ignore this error, because this is not how a real client reports these errors
+	_ = client.Call("Arith.Div", args, reply)
+
+	if !preBodyInterceptorCalled {
+		t.Errorf("expected preBodyInterceptorCalled to be true")
+	}
+
+	expected := "request denied"
+	if client.err.Error() != expected {
+		t.Errorf("expected client.err to be %q but was %s", expected, client.err.Error())
 	}
 }
 
@@ -965,10 +1037,10 @@ func serveHTTP(server *Server) func(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func serveConn(server *Server, conn io.ReadWriteCloser) {
+func serveConn(server *Server, conn net.Conn) {
 	buf := bufio.NewWriter(conn)
 	codec := &gobServerCodec{
-		rwc:    conn,
+		conn:   conn,
 		dec:    gob.NewDecoder(conn),
 		enc:    gob.NewEncoder(buf),
 		encBuf: buf,

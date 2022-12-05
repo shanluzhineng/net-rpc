@@ -6,6 +6,7 @@ package codec
 import (
 	"bufio"
 	"io"
+	"net"
 	"sync"
 
 	"github.com/hashicorp/consul-net-rpc/net/rpc"
@@ -13,8 +14,8 @@ import (
 
 // Rpc provides a rpc Server or Client Codec for rpc communication.
 type Rpc interface {
-	ServerCodec(conn io.ReadWriteCloser, h Handle) rpc.ServerCodec
-	ClientCodec(conn io.ReadWriteCloser, h Handle) rpc.ClientCodec
+	ServerCodec(conn Conn, h Handle) rpc.ServerCodec
+	ClientCodec(conn Conn, h Handle) rpc.ClientCodec
 }
 
 // RpcCodecBuffered allows access to the underlying bufio.Reader/Writer
@@ -28,26 +29,31 @@ type RpcCodecBuffered interface {
 
 // -------------------------------------
 
-// rpcCodec defines the struct members and common methods.
-type rpcCodec struct {
-	rwc io.ReadWriteCloser
-	dec *Decoder
-	enc *Encoder
-	bw  *bufio.Writer
-	br  *bufio.Reader
-	mu  sync.Mutex
-	cls bool
+type Conn interface {
+	io.ReadWriteCloser
+	RemoteAddr() net.Addr
 }
 
-func newRPCCodec(conn io.ReadWriteCloser, h Handle) rpcCodec {
+// rpcCodec defines the struct members and common methods.
+type rpcCodec struct {
+	conn Conn
+	dec  *Decoder
+	enc  *Encoder
+	bw   *bufio.Writer
+	br   *bufio.Reader
+	mu   sync.Mutex
+	cls  bool
+}
+
+func newRPCCodec(conn Conn, h Handle) rpcCodec {
 	bw := bufio.NewWriter(conn)
 	br := bufio.NewReader(conn)
 	return rpcCodec{
-		rwc: conn,
-		bw:  bw,
-		br:  br,
-		enc: NewEncoder(bw, h),
-		dec: NewDecoder(br, h),
+		conn: conn,
+		bw:   bw,
+		br:   br,
+		enc:  NewEncoder(bw, h),
+		dec:  NewDecoder(br, h),
 	}
 }
 
@@ -94,7 +100,7 @@ func (c *rpcCodec) Close() error {
 		return io.EOF
 	}
 	c.cls = true
-	return c.rwc.Close()
+	return c.conn.Close()
 }
 
 func (c *rpcCodec) ReadResponseBody(body interface{}) error {
@@ -132,6 +138,10 @@ func (c *goRpcCodec) ReadRequestBody(body interface{}) error {
 	return c.read(body)
 }
 
+func (c *goRpcCodec) SourceAddr() net.Addr {
+	return c.conn.RemoteAddr()
+}
+
 // -------------------------------------
 
 // goRpc is the implementation of Rpc that uses the communication protocol
@@ -142,11 +152,11 @@ type goRpc struct{}
 // Its methods (ServerCodec and ClientCodec) return values that implement RpcCodecBuffered.
 var GoRpc goRpc
 
-func (x goRpc) ServerCodec(conn io.ReadWriteCloser, h Handle) rpc.ServerCodec {
+func (x goRpc) ServerCodec(conn Conn, h Handle) rpc.ServerCodec {
 	return &goRpcCodec{newRPCCodec(conn, h)}
 }
 
-func (x goRpc) ClientCodec(conn io.ReadWriteCloser, h Handle) rpc.ClientCodec {
+func (x goRpc) ClientCodec(conn Conn, h Handle) rpc.ClientCodec {
 	return &goRpcCodec{newRPCCodec(conn, h)}
 }
 

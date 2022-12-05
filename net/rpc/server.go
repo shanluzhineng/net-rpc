@@ -133,6 +133,7 @@ import (
 	"go/token"
 	"io"
 	"log"
+	"net"
 	"reflect"
 	"strings"
 	"sync"
@@ -191,6 +192,7 @@ type Server struct {
 	freeResp   *Response
 
 	serverServiceCallInterceptor ServerServiceCallInterceptor
+	preBodyInterceptor           PreBodyInterceptor
 }
 
 // NewServer returns a new Server.
@@ -213,9 +215,20 @@ func WithServerServiceCallInterceptor(interceptor ServerServiceCallInterceptor) 
 	}
 }
 
+func WithPreBodyInterceptor(interceptor PreBodyInterceptor) func(*Server) {
+	return func(s *Server) {
+		s.preBodyInterceptor = interceptor
+	}
+}
+
 // ServerServiceCallInterceptor acts a middleware hook on the server side of the RPC call. The interceptor must
 // invoke the handler argument for the RPC request to continue.
 type ServerServiceCallInterceptor func(reqServiceMethod string, argv, replyv reflect.Value, handler func() error)
+
+// PreBodyInterceptor acts a middleware hook on the server side of the RPC call that executes as early as possible
+// in the flow of execution. Specifically, after the request header is parsed but before the request body is parsed.
+// Returning an error will cease further processing of the request and return a response containing the error.
+type PreBodyInterceptor func(reqServiceMethod string, sourceAddr net.Addr) error
 
 // DefaultServer is the default instance of *Server.
 var DefaultServer = NewServer()
@@ -406,7 +419,7 @@ func (s *service) call(server *Server, sending *sync.Mutex, wg *sync.WaitGroup, 
 }
 
 type gobServerCodec struct {
-	rwc    io.ReadWriteCloser
+	conn   net.Conn
 	dec    *gob.Decoder
 	enc    *gob.Encoder
 	encBuf *bufio.Writer
@@ -443,13 +456,17 @@ func (c *gobServerCodec) WriteResponse(r *Response, body interface{}) (err error
 	return c.encBuf.Flush()
 }
 
+func (c *gobServerCodec) SourceAddr() net.Addr {
+	return c.conn.RemoteAddr()
+}
+
 func (c *gobServerCodec) Close() error {
 	if c.closed {
 		// Only call c.rwc.Close once; otherwise the semantics are undefined.
 		return nil
 	}
 	c.closed = true
-	return c.rwc.Close()
+	return c.conn.Close()
 }
 
 // ServeRequest is like ServeCodec but synchronously serves a single request.
@@ -534,6 +551,14 @@ func (server *Server) readRequest(codec ServerCodec) (service *service, mtype *m
 		return
 	}
 
+	if server.preBodyInterceptor != nil {
+		// Allow interceptor to halt servicing of the request
+		err = server.preBodyInterceptor(req.ServiceMethod, codec.SourceAddr())
+		if err != nil {
+			return
+		}
+	}
+
 	// Decode the argument value.
 	argIsValue := false // if true, need to indirect before calling.
 	if mtype.ArgType.Kind() == reflect.Ptr {
@@ -612,6 +637,7 @@ type ServerCodec interface {
 	ReadRequestHeader(*Request) error
 	ReadRequestBody(interface{}) error
 	WriteResponse(*Response, interface{}) error
+	SourceAddr() net.Addr
 
 	// Close can be called multiple times and must be idempotent.
 	Close() error

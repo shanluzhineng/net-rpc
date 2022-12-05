@@ -4,7 +4,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: docker.mirror.hashicorp.services/cimg/go:1.17
+      - image: docker.mirror.hashicorp.services/cimg/go:1.19
     steps:
       - checkout
       - run: go mod download

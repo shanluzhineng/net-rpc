@@ -4,7 +4,6 @@
 package msgpackrpc
 
 import (
-	"io"
 	"net"
 
 	"github.com/hashicorp/consul-net-rpc/net/rpc"
@@ -21,16 +20,16 @@ func Dial(network, address string) (*rpc.Client, error) {
 
 // NewClient returns a new rpc.Client to handle requests to the set of
 // services at the other end of the connection.
-func NewClient(conn io.ReadWriteCloser) *rpc.Client {
+func NewClient(conn net.Conn) *rpc.Client {
 	return rpc.NewClientWithCodec(NewClientCodec(conn))
 }
 
 // NewClientCodec returns a new rpc.ClientCodec using MessagePack-RPC on conn.
-func NewClientCodec(conn io.ReadWriteCloser) rpc.ClientCodec {
+func NewClientCodec(conn net.Conn) rpc.ClientCodec {
 	return NewCodec(true, true, conn)
 }
 
 // NewServerCodec returns a new rpc.ServerCodec using MessagePack-RPC on conn.
-func NewServerCodec(conn io.ReadWriteCloser) rpc.ServerCodec {
+func NewServerCodec(conn net.Conn) rpc.ServerCodec {
 	return NewCodec(true, true, conn)
 }
