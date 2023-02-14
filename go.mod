@@ -1,4 +1,4 @@
-module github.com/hashicorp/consul-net-rpc
+module github.com/abmpio/net-rpc
 
 go 1.19
 

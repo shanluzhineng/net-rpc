@@ -35,7 +35,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/consul-net-rpc/net/rpc"
+	"github.com/abmpio/net-rpc/net/rpc"
 )
 
 type testVerifyArg int

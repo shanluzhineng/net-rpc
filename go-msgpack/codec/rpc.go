@@ -9,7 +9,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/hashicorp/consul-net-rpc/net/rpc"
+	"github.com/abmpio/net-rpc/net/rpc"
 )
 
 // Rpc provides a rpc Server or Client Codec for rpc communication.

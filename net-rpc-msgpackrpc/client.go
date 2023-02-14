@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sync/atomic"
 
-	"github.com/hashicorp/consul-net-rpc/net/rpc"
+	"github.com/abmpio/net-rpc/net/rpc"
 	"github.com/hashicorp/go-multierror"
 )
 
