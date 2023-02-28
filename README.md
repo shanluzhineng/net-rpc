@@ -14,6 +14,10 @@ to `net/rpc` point at the correct package.
 [hashicorp/net-rpc-msgpackrpc]: https://github.com/hashicorp/net-rpc-msgpackrpc
 [hashicorp/go-msgpack]: https://github.com/hashicorp/go-msgpack
 
+## Use
+
+`import rpc "github.com/abmpio/net-rpc"`
+
 ## Why does this fork exist?
 
 [net/rpc] has been [frozen since late 2016], which means no new changes will be made
