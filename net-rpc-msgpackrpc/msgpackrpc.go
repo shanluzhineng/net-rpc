@@ -6,7 +6,7 @@ package msgpackrpc
 import (
 	"net"
 
-	"github.com/abmpio/net-rpc/net/rpc"
+	"github.com/shanluzhineng/net-rpc/net/rpc"
 )
 
 // Dial connects to a MessagePack-RPC server at the specified network address.

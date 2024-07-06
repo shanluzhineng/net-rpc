@@ -6,8 +6,8 @@ import (
 	"net"
 	"sync"
 
-	"github.com/abmpio/net-rpc/go-msgpack/codec"
-	"github.com/abmpio/net-rpc/net/rpc"
+	"github.com/shanluzhineng/net-rpc/go-msgpack/codec"
+	"github.com/shanluzhineng/net-rpc/net/rpc"
 )
 
 var (

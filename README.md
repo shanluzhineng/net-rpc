@@ -16,7 +16,7 @@ to `net/rpc` point at the correct package.
 
 ## Use
 
-`import rpc "github.com/abmpio/net-rpc"`
+`import rpc "github.com/shanluzhineng/net-rpc"`
 
 ## Why does this fork exist?
 
